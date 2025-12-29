@@ -17,7 +17,7 @@ graph TD
     end
     
     subgraph "Data Plane (Execution)"
-        EngineCluster -->|Dispatch| Queue[Task Queue (Kafka/RabbitMQ)]
+        EngineCluster -->|Dispatch| Queue["Task Queue (Kafka/RabbitMQ)"]
         
         Queue --> WorkerPool[Local Worker Pool]
         Queue --> LambdaConn[AWS Lambda Connector]
@@ -170,3 +170,29 @@ For the monitoring dashboard, REST polling is inefficient. We use **WebSockets**
     -   Python Tasks usually run Arbitrary Code.
     -   **Mitigation**: Use **gVisor** or **Firecracker MicroVMs** for the Local Worker Pool to ensure task isolation.
     -   **Secrets Management**: Never pass secrets as raw environment variables. Use a vault (e.g., AWS Secrets Manager, HashiCorp Vault) and inject them only into the process memory at runtime.
+
+---
+
+## 7. Core Design Decisions & Trade-offs
+
+To explicitly address the rationale behind our architecture, here are the key trade-offs we navigated:
+
+1.  **Control/Data Plane Separation vs. Monolith**:
+    -   **Decision**: Decouple logic (Control) from compute (Data).
+    -   **Rationale**: Allows the engine to remain lightweight and highly responsive. Heavy data tasks running in the `Local Worker Pool` will never block the heartbeat loop of the orchestrator.
+    -   **Trade-off**: Increases operational complexity (managing two services) but required for high scalability.
+
+2.  **PostgreSQL (Relational) vs. NoSQL (DynamoDB/Cassandra)**:
+    -   **Decision**: Use PostgreSQL for primary metadata storage.
+    -   **Rationale**: Workflow state transitions require strict ACID compliance. An inconsistent read (e.g., seeing a task as "Pending" when it's actually "Running") could lead to double-execution.
+    -   **Trade-off**: Lower raw write throughput than Cassandra. Addressed by **Partitioning** and **Batching**.
+
+3.  **WebSockets vs. Long-Polling**:
+    -   **Decision**: Use WebSockets for Dashboard updates.
+    -   **Rationale**: Real-time visibility is critical for Ops teams responding to incidents. Polling at 10k workflows would DDOS our own database.
+    -   **Trade-off**: Requires stateful connection management at the API Gateway layer (which can be hard to auto-scale), but justified by DB load reduction.
+
+4.  **JSONB for Schema vs. Pure Relational Columns**:
+    -   **Decision**: Store DAG structure and Context as JSONB.
+    -   **Rationale**: Workflow definitions change frequently. Supporting custom parameters for new Task types without running `ALTER TABLE` migrations allows for rapid iteration and extensibility.
+    -   **Trade-off**: Slightly slower queries on nested fields, but mitigated by GIN indexing where necessary.
