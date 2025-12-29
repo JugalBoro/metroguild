@@ -136,3 +136,37 @@ erDiagram
 
 ### Network Partitions
 -   **Idempotency Keys**: Every task dispatch includes a unique UUID. Backends (Lambda/Local) track processed UUIDs to prevent double-execution during network blips where acknowledgments are lost.
+
+---
+
+## 5. API Design Choices
+
+### API Style: **REST (State Representational State Transfer)**
+We chose REST over gRPC or GraphQL for the Control Plane level.
+
+1.  **Resource Orientation**: Workflows and Executions map naturally to resources (e.g., `POST /workflows`, `GET /executions/{id}`).
+2.  **Cacheability**: HTTP caching can be leveraged for static resources like Workflow Definitions (`GET /workflows/def/{version}`).
+3.  **Ecosystem**: Simpler integration for third-party webhooks (e.g., GitHub Actions triggering a workflow) compared to gRPC.
+
+### Real-Time Updates: **WebSockets**
+For the monitoring dashboard, REST polling is inefficient. We use **WebSockets** for:
+-   Pushing `TaskStarted`, `TaskCompleted` events instantly to the UI.
+-   Reducing load on the database by broadcasting memory-state changes directly from the Orchestrator (via Redis Pub/Sub bridge).
+
+---
+
+## 6. Security Considerations
+
+### Authentication & Authorization
+-   **OAuth2 / OpenID Connect**: Integration with corporate identity providers (Google/Okta) to ensure only authorized personnel can access the Control Plane.
+-   **RBAC (Role-Based Access Control)**:
+    -   **Viewer**: Can view Dashboards and Logs (Read-Only).
+    -   **Operator**: Can `Trigger`, `Pause`, `Resume` workflows.
+    -   **Admin**: Can `Create`/`Delete` workflow definitions and manage secrets.
+
+### Injection Prevention
+-   **Input Sanitization**: All workflow inputs (JSON payloads) are validated against a strict JSON Schema defined in the Workflow Definition before execution starts.
+-   **Code Execution Sandboxing**:
+    -   Python Tasks usually run Arbitrary Code.
+    -   **Mitigation**: Use **gVisor** or **Firecracker MicroVMs** for the Local Worker Pool to ensure task isolation.
+    -   **Secrets Management**: Never pass secrets as raw environment variables. Use a vault (e.g., AWS Secrets Manager, HashiCorp Vault) and inject them only into the process memory at runtime.

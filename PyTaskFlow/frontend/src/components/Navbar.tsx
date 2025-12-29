@@ -1,7 +1,13 @@
 import { Avatar } from 'primereact/avatar';
+import { Button } from 'primereact/button';
 import { useLocation } from 'react-router-dom';
+import { Plus } from 'lucide-react';
 
-export function Navbar() {
+interface NavbarProps {
+    onNewWorkflow: () => void;
+}
+
+export function Navbar({ onNewWorkflow }: NavbarProps) {
     const location = useLocation();
 
     // Helper to format title
@@ -17,7 +23,13 @@ export function Navbar() {
             </h1>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <span style={{ fontSize: '0.85rem', color: '#64748b' }}>v1.2.0</span>
+                <Button
+                    label="New Workflow"
+                    icon={<Plus size={16} style={{ marginRight: '0.5rem' }} />}
+                    style={{ background: 'var(--primary-600)', border: 'none', fontWeight: 600, padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+                    onClick={onNewWorkflow}
+                />
+
                 <div style={{ width: '1px', height: '16px', background: '#e2e8f0' }}></div>
 
                 <div style={{

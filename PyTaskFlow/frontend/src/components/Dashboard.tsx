@@ -9,7 +9,7 @@ import { format } from 'date-fns';
 
 export function Dashboard() {
     const [stats, setStats] = useState({ workflows: 0, executions: 0, active: 0 });
-    const [recentExecutions, setRecentExecutions] = useState([]);
+    const [recentExecutions, setRecentExecutions] = useState<any[]>([]);
     const [chartData, setChartData] = useState<any[]>([]);
 
     const fetchData = async () => {
@@ -33,7 +33,11 @@ export function Dashboard() {
                 { name: 'Sun', value: 6 },
             ]);
 
-            setRecentExecutions(execs.slice(0, 5));
+            // Fix: Sort by newest first
+            const sortedExecs = [...execs].sort((a: any, b: any) =>
+                new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
+            );
+            setRecentExecutions(sortedExecs.slice(0, 5));
         } catch (e) {
             console.error(e);
         }
